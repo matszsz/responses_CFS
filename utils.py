@@ -171,7 +171,7 @@ def plot_signals_p_value(smr, all_lower_bounds, all_p_values):
     all_p_values - dictionary with p-values for each threshold
     """
     fig, axs = plt.subplots(6, 3, figsize = (15,15))
-    plot_names = list(smr.peptide_id)
+    plot_names = list(smr.name)
     for i in range(6):
         for j in range(3):
             if 3*i+j < 16:
@@ -195,7 +195,7 @@ def plot_signals_auc(smr, all_lower_bounds, auc):
     auc - dictionary with AUC for each threshold
     """
     fig, axs = plt.subplots(6, 3, figsize = (15,15))
-    plot_names = list(smr.peptide_id)
+    plot_names = list(smr.name)
     for i in range(6):
         for j in range(3):
             if 3*i+j < 16:
@@ -219,7 +219,7 @@ def plot_signals_gini(smr, all_lower_bounds, gini):
     gini - dictionary with AUC for each threshold
     """
     fig, axs = plt.subplots(6, 3, figsize = (15,15))
-    plot_names = list(smr.peptide_id)
+    plot_names = list(smr.name)
     for i in range(6):
         for j in range(3):
             if 3*i+j < 16:
