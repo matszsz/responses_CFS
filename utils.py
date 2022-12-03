@@ -21,6 +21,8 @@ def summarize_df(data, g1_idx, g2_idx):
     g2_prop_above = {}
     auc = {}
     gini = {}
+    g1_obs_above = {}
+    g2_obs_above = {}
     
     sequences = []
     antibodies = []
