@@ -22,7 +22,9 @@ def summarize_df(data, g1_idx, g2_idx):
     auc = {}
     gini = {}
     g1_obs_above = {}
+    g1_obs_below = {}
     g2_obs_above = {}
+    g2_ob_below
     
     sequences = []
     antibodies = []
