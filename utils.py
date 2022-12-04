@@ -478,7 +478,7 @@ def plot_signals_youden(smr, all_lower_bounds, youden):
                 axs[i, j].plot(np.log10(np.array(all_lower_bounds[3*i+j])), youden[3*i+j])
                 axs[i, j].set_title(plot_names[3*i+j])
                 axs[i, j].set_xlabel(r'log$_{10}$(threshold)')
-                axs[i, j].set_ylabel("Youden's J-statistic")
+                axs[i, j].set_ylabel("Youden's J statistic")
                 axs[i, j].set_ylim([0, 0.35])
                 axs[i, j].vlines(np.log10(smr.youden_lower_bound[3*i+j]), ymin = 0, ymax = 0.35, color = 'red', linestyles = 'dotted')
                 axs[i, j].axhline(smr.max_youden.max(), ls = '--', color = 'red')
