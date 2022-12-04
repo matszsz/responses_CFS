@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2_contingency
@@ -24,13 +25,23 @@ def summarize_df(data, g1_idx, g2_idx):
     g1_obs_above = {}
     g1_obs_below = {}
     g2_obs_above = {}
-    g2_ob_below
+    g2_obs_below = {}
+    roc01 = {}
+    youden = {}
+    sen_spe_dist = {}
+    sen = {}
+    spe = {}
+    y_plot = {}
+    x_plot = {}
     
     sequences = []
     antibodies = []
     strains = []
     peptide_ids = []
     names = []
+    directions = []
+
+    AUC_TOT = []
 
     groups = []
 
@@ -61,6 +72,18 @@ def summarize_df(data, g1_idx, g2_idx):
         g2_prop_above[j] = []
         auc[j] = []
         gini[j] = []
+        roc01[j] = []
+        youden[j] = []
+        sen_spe_dist[j] = []
+        sen[j] = []
+        spe[j] = []
+
+        g1_obs_above[j] = []
+        g2_obs_above[j] = []
+        g1_obs_below[j] = []
+        g2_obs_below[j] = []
+
+        directions.append('below')
 
         y = np.array([1]*g1.shape[0]+[0]*g2.shape[0])
 
@@ -74,6 +97,11 @@ def summarize_df(data, g1_idx, g2_idx):
             g2_above = (g2 > threshold).sum()
             g2_below = g2.shape[0] - g2_above
 
+            g1_obs_below[j].append(g1_below)
+            g2_obs_below[j].append(g2_below)
+            g1_obs_above[j].append(g1_above)
+            g2_obs_above[j].append(g2_above)
+
             # chi square test
             test = chi2_contingency(np.array([[g1_above, g1_below], [g2_above, g2_below]]))
 
@@ -82,6 +110,21 @@ def summarize_df(data, g1_idx, g2_idx):
             fpr, tpr, _ = metrics.roc_curve(y, pred, pos_label=1)
             auc_tmp = metrics.auc(fpr, tpr)
             auc[j].append(max(auc_tmp, 1-auc_tmp))
+
+            sensitivity = g1_below/(g1_above+g1_below)
+            specificity = 1 - g2_below/((g2_above+g2_below))
+
+            sen[j].append(sensitivity)
+            spe[j].append(specificity)
+
+            # ROC01
+            roc01[j].append(np.sqrt((1-sensitivity)**2 + (1-specificity)**2))
+
+            # Youden's J-index
+            youden[j].append(sensitivity + specificity - 1)
+
+            # distance
+            sen_spe_dist[j].append(np.abs(sensitivity-specificity))
 
             # Gini index
             sm_above = g1_above + g2_above
@@ -99,24 +142,102 @@ def summarize_df(data, g1_idx, g2_idx):
             g1_prop_above[j].append(g1_above/g1.shape[0])
             g2_prop_above[j].append(g2_above/g2.shape[0])
 
+        xxx = 1-np.array([1] + spe[j] + [0])
+        yyy = np.array([0] + sen[j] + [1])
+
+        auc_total = metrics.auc(xxx, yyy)
+
+        if auc_total < 0.5:
+            sen[j] = []
+            spe[j] = []
+            roc01[j] = []
+            youden[j] = []
+            sen_spe_dist[j] = []
+            for i in range(len(row)-1):
+                threshold = row[i]
+                g1_above = (g1 > threshold).sum()
+                g1_below = g1.shape[0] - g1_above
+                g2_above = (g2 > threshold).sum()
+                g2_below = g2.shape[0] - g2_above
+
+                sensitivity = g1_above/(g1_above+g1_below)
+                specificity = 1 - g2_above/((g2_above+g2_below))
+
+                sen[j].append(sensitivity)
+                spe[j].append(specificity)
+
+                # ROC01
+                roc01[j].append(np.sqrt((1-sensitivity)**2 + (1-specificity)**2))
+
+                # Youden's J-index
+                youden[j].append(sensitivity + specificity - 1)
+
+                # distance
+                sen_spe_dist[j].append(np.abs(sensitivity-specificity))
+
+            xxx = 1-np.array([0] + spe[j] + [1])
+            yyy = np.array([1] + sen[j] + [0])
+            auc_total = metrics.auc(xxx, yyy)
+
+            directions[-1] = 'above'
+
+        AUC_TOT.append(auc_total)
+        y_plot[j] = yyy
+        x_plot[j] = xxx
+
     best_p_values = []
     best_test_stats = []
     best_test_lower_bounds = []
     best_test_upper_bounds = []
     best_test_g1_prop_above = []
     best_test_g2_prop_above = []
+    best_test_sen = []
+    best_test_spe = []
 
     best_auc = []
     best_auc_lower_bounds = []
     best_auc_upper_bounds = []
     best_auc_g1_prop_above = []
     best_auc_g2_prop_above = []
+    best_auc_p_value = []
+    best_auc_sen = []
+    best_auc_spe = []
 
     best_gini = []
     best_gini_lower_bounds = []
     best_gini_upper_bounds = []
     best_gini_g1_prop_above = []
     best_gini_g2_prop_above = []
+    best_gini_p_value = []
+    best_gini_sen = []
+    best_gini_spe = []
+
+    best_roc01 = []
+    best_roc01_lower_bounds = []
+    best_roc01_upper_bounds = []
+    best_roc01_g1_prop_above = []
+    best_roc01_g2_prop_above = []
+    best_roc01_p_value = []
+    best_roc01_sen = []
+    best_roc01_spe = []
+
+    best_youden = []
+    best_youden_lower_bounds = []
+    best_youden_upper_bounds = []
+    best_youden_g1_prop_above = []
+    best_youden_g2_prop_above = []
+    best_youden_p_value = []
+    best_youden_sen = []
+    best_youden_spe = []
+
+    best_dist = []
+    best_dist_lower_bounds = []
+    best_dist_upper_bounds = []
+    best_dist_g1_prop_above = []
+    best_dist_g2_prop_above = []
+    best_dist_p_value = []
+    best_dist_sen = []
+    best_dist_spe = []
 
     best_prop_g1_min = []
     best_prop_g1_max = []
@@ -131,6 +252,8 @@ def summarize_df(data, g1_idx, g2_idx):
         best_test_upper_bounds.append(upper_bounds[j][index_min_p])
         best_test_g1_prop_above.append(g1_prop_above[j][index_min_p])
         best_test_g2_prop_above.append(g2_prop_above[j][index_min_p])
+        best_test_sen.append(sen[j][index_min_p])
+        best_test_spe.append(spe[j][index_min_p])
 
         prop_g1 = proportion_confint(np.round(best_test_g1_prop_above[-1]*g1.shape[0], 0), g1.shape[0], alpha=0.05, method='normal')
         best_prop_g1_min.append(prop_g1[0])
@@ -145,6 +268,39 @@ def summarize_df(data, g1_idx, g2_idx):
         best_gini_upper_bounds.append(upper_bounds[j][index_max_gini])
         best_gini_g1_prop_above.append(g1_prop_above[j][index_max_gini])
         best_gini_g2_prop_above.append(g2_prop_above[j][index_max_gini])
+        best_gini_p_value.append(p_values[j][index_max_gini])
+        best_gini_sen.append(sen[j][index_max_gini])
+        best_gini_spe.append(spe[j][index_max_gini])
+
+        index_min_roc01 = min(range(len(roc01[j])), key=roc01[j].__getitem__)
+        best_roc01.append(roc01[j][index_min_roc01])
+        best_roc01_lower_bounds.append(lower_bounds[j][index_min_roc01])
+        best_roc01_upper_bounds.append(upper_bounds[j][index_min_roc01])
+        best_roc01_g1_prop_above.append(g1_prop_above[j][index_min_roc01])
+        best_roc01_g2_prop_above.append(g2_prop_above[j][index_min_roc01])
+        best_roc01_p_value.append(p_values[j][index_min_roc01])
+        best_roc01_sen.append(sen[j][index_min_roc01])
+        best_roc01_spe.append(spe[j][index_min_roc01])
+
+        index_max_youden = max(range(len(youden[j])), key=youden[j].__getitem__)
+        best_youden.append(youden[j][index_max_youden])
+        best_youden_lower_bounds.append(lower_bounds[j][index_max_youden])
+        best_youden_upper_bounds.append(upper_bounds[j][index_max_youden])
+        best_youden_g1_prop_above.append(g1_prop_above[j][index_max_youden])
+        best_youden_g2_prop_above.append(g2_prop_above[j][index_max_youden])
+        best_youden_p_value.append(p_values[j][index_max_youden])
+        best_youden_sen.append(sen[j][index_max_youden])
+        best_youden_spe.append(spe[j][index_max_youden])
+
+        index_min_dist = min(range(len(sen_spe_dist[j])), key=sen_spe_dist[j].__getitem__)
+        best_dist.append(sen_spe_dist[j][index_min_dist])
+        best_dist_lower_bounds.append(lower_bounds[j][index_min_dist])
+        best_dist_upper_bounds.append(upper_bounds[j][index_min_dist])
+        best_dist_g1_prop_above.append(g1_prop_above[j][index_min_dist])
+        best_dist_g2_prop_above.append(g2_prop_above[j][index_min_dist])
+        best_dist_p_value.append(p_values[j][index_min_dist])
+        best_dist_sen.append(sen[j][index_min_dist])
+        best_dist_spe.append(spe[j][index_min_dist])
 
         index_max_auc = max(range(len(auc[j])), key=auc[j].__getitem__)
         best_auc.append(auc[j][index_max_auc])
@@ -152,20 +308,76 @@ def summarize_df(data, g1_idx, g2_idx):
         best_auc_upper_bounds.append(upper_bounds[j][index_max_auc])
         best_auc_g1_prop_above.append(g1_prop_above[j][index_max_auc])
         best_auc_g2_prop_above.append(g2_prop_above[j][index_max_auc])
+        best_auc_p_value.append(p_values[j][index_max_auc])
+        best_auc_sen.append(sen[j][index_max_auc])
+        best_auc_spe.append(spe[j][index_max_auc])
 
 
     summary = pd.DataFrame({'peptide_id':peptide_ids, 'strains':strains, 'sequence':sequences, 'antibody':antibodies, 
                 'test_lower_bound':best_test_lower_bounds, 'test_upper_bound':best_test_upper_bounds, 'min_p_value': best_p_values, 
-                'test_g1_prop_above': best_test_g1_prop_above, 'test_g2_prop_above': best_test_g2_prop_above, 'max_auc':best_auc, 
-                'auc_lower_bound': best_auc_lower_bounds, 'auc_upper_bound': best_auc_upper_bounds, 'auc_g1_prop_above': best_auc_g1_prop_above,
-                'auc_g2_prop_above': best_auc_g2_prop_above, 'max_gini':best_gini, 'gini_lower_bound':best_gini_lower_bounds, 
-                'gini_upper_bound': best_gini_upper_bounds, 'gini_g1_prop_above': best_gini_g1_prop_above, 
-                'gini_g2_prop_above': best_gini_g2_prop_above, 'proportion_min_g1': best_prop_g1_min, 'proportion_max_g1': best_prop_g1_max,
-                'proportion_min_g2': best_prop_g2_min, 'proportion_max_g2': best_prop_g2_max, 'groups':groups})
+                'test_g1_prop_above': best_test_g1_prop_above, 'test_g2_prop_above': best_test_g2_prop_above, 
+                'test_sen': best_test_sen, 'test_spe': best_test_spe, 'max_auc':best_auc, 
+                'auc_lower_bound': best_auc_lower_bounds, 'auc_upper_bound': best_auc_upper_bounds, 'auc_p_value': best_auc_p_value, 
+                'auc_sen': best_auc_sen, 'auc_spe': best_auc_spe, 'max_gini': best_gini, 'gini_p_value': best_gini_p_value,
+                'gini_lower_bound':best_gini_lower_bounds, 
+                'gini_upper_bound': best_gini_upper_bounds, 'gini_sen': best_gini_sen, 'gini_spe': best_gini_spe,
+                'min_roc01':best_roc01, 'roc01_p_value': best_roc01_p_value, 'roc01_sen': best_roc01_sen, 'roc01_spe': best_roc01_spe,
+                'roc01_lower_bound': best_roc01_lower_bounds, 'roc01_upper_bound': best_roc01_upper_bounds,
+                'max_youden': best_youden, 'youden_lower_bound': best_youden_lower_bounds, 'youden_upper_bound': best_youden_upper_bounds,
+                'youden_p_value': best_youden_p_value, 'youden_sen': best_youden_sen, 'youden_spe': best_youden_spe,
+                'min_dist': best_youden, 'dist_lower_bound': best_dist_lower_bounds, 'dist_upper_bound': best_dist_upper_bounds,
+                'dist_p_value': best_dist_p_value, 'dist_sen': best_dist_sen, 'dist_spe': best_dist_spe,
+                'proportion_min_g1': best_prop_g1_min, 'proportion_max_g1': best_prop_g1_max,'proportion_min_g2': best_prop_g2_min, 
+                'proportion_max_g2': best_prop_g2_max, 'groups':groups, 'AUC_total': AUC_TOT, 'direction': directions})
     
     summary['name'] = summary.peptide_id + ' (' + summary.strains + ')'
 
-    return summary, lower_bounds, p_values, auc, gini
+    return summary, lower_bounds, p_values, auc, gini, x_plot, y_plot, youden, roc01
+
+def summarize_threshold(smr):
+
+    n = smr.shape[0]
+
+    methods = ['Chi-square', 'ROC01' ,'Youden', '|Sen-Spe|', 'Gini', 'AUC (single thr.)']
+    names = ['test_lower_bound', 'roc01_lower_bound', 'youden_lower_bound', 'dist_lower_bound', 'gini_lower_bound', 'auc_lower_bound']
+    bounds = smr[names]
+    b = []
+    for i in range(smr.shape[1]):
+        for j in range(bounds.shape[0]):
+            b.append(bounds.iloc[i, j])
+    
+    return pd.DataFrame({'Method': methods*n, 'Bounds': b})
+
+
+def plot_AUC(smr, x_plot, y_plot):
+    """
+    Plots a panel with AUC.
+    smr - data frame with all useful statistics
+    x_plot - dict with 1-specifiticy values
+    y_plot - dict with sensitivity values
+    """
+    fig, axs = plt.subplots(6, 3, figsize = (15,25), dpi = 300)
+    plot_names = list(smr.name)
+    for i in range(6):
+        for j in range(3):
+            if 3*i+j < 16:
+                axs[i, j].step(x_plot[3*i+j], y_plot[3*i+j], label = f'AUC={np.round(smr.AUC_total[3*i+j], 3)}')
+                axs[i, j].plot((0, 1), (0, 1), '--', color = 'black')
+                np.random.seed(0)
+                sd = 0.003
+                axs[i, j].scatter(x = 1-smr.roc01_spe[3*i+j]+np.random.normal(0, sd), y = smr.roc01_sen[3*i+j]+np.random.normal(0, sd), color = 'red', label = 'ROC01')
+                axs[i, j].scatter(x = 1-smr.youden_spe[3*i+j]+np.random.normal(0, sd), y = smr.youden_sen[3*i+j]+np.random.normal(0, sd), color = 'green', label = 'Youden J-index')
+                axs[i, j].scatter(x = 1-smr.dist_spe[3*i+j]+np.random.normal(0, sd), y = smr.dist_sen[3*i+j]+np.random.normal(0, sd), color = 'blue', label = '|Sen-Spe|')
+                axs[i, j].set_title(plot_names[3*i+j])
+                axs[i, j].set_ylim([0, 1])
+                axs[i, j].set_xlim([0, 1])
+                axs[i, j].set_ylabel('sensitivity')
+                axs[i, j].set_xlabel('1 - specificity')
+                axs[i, j].legend(handlelength=1, loc = 'lower right')
+            else:
+                axs[i, j].set_visible(False)
+    fig.tight_layout()
+    plt.show()
 
 def plot_signals_p_value(smr, all_lower_bounds, all_p_values):
     """
@@ -174,7 +386,79 @@ def plot_signals_p_value(smr, all_lower_bounds, all_p_values):
     all_lower_bounds - dictionary with all possible thresholds
     all_p_values - dictionary with p-values for each threshold
     """
-    fig, axs = plt.subplots(6, 3, figsize = (15,15))
+    fig, axs = plt.subplots(6, 3, figsize = (15,15), dpi = 300)
+    plot_names = list(smr.name)
+    for i in range(6):
+        for j in range(3):
+            if 3*i+j < 16:
+                axs[i, j].plot(np.log10(np.array(all_lower_bounds[3*i+j])), -np.log10(np.array(all_p_values[3*i+j])))
+                axs[i, j].set_title(plot_names[3*i+j])
+                axs[i, j].set_xlabel(r'log$_{10}$(threshold)')
+                axs[i, j].set_ylabel(r'-log$_{10}$(p-value)')
+                axs[i, j].set_ylim([0, 4])
+                axs[i, j].vlines(np.log10(smr.test_lower_bound[3*i+j]), ymin = 0, ymax = 4, color = 'red', linestyles = 'dotted')
+                axs[i, j].axhline(-np.log10(0.05), ls = '--', color = 'red')
+            else:
+                axs[i, j].set_visible(False)
+    fig.tight_layout()
+    plt.show()
+
+def plot_signals_youden(smr, all_lower_bounds, youden):
+    """
+    Plots a panel with signals maximizing Youden J-index.
+    smr - data frame with all useful statistics
+    all_lower_bounds - dictionary with all possible thresholds
+    youden - dictionary with Youden J-index for each threshold
+    """
+    fig, axs = plt.subplots(6, 3, figsize = (15,15), dpi = 300)
+    plot_names = list(smr.name)
+    for i in range(6):
+        for j in range(3):
+            if 3*i+j < 16:
+                axs[i, j].plot(np.log10(np.array(all_lower_bounds[3*i+j])), youden[3*i+j])
+                axs[i, j].set_title(plot_names[3*i+j])
+                axs[i, j].set_xlabel(r'log$_{10}$(threshold)')
+                axs[i, j].set_ylabel("Youden's J-statistic")
+                axs[i, j].set_ylim([0, 0.35])
+                axs[i, j].vlines(np.log10(smr.youden_lower_bound[3*i+j]), ymin = 0, ymax = 0.35, color = 'red', linestyles = 'dotted')
+                axs[i, j].axhline(smr.max_youden.max(), ls = '--', color = 'red')
+            else:
+                axs[i, j].set_visible(False)
+    fig.tight_layout()
+    plt.show()
+
+def plot_signals_roc01(smr, all_lower_bounds, roc01):
+    """
+    Plots a panel with signals maximizing ROC01.
+    smr - data frame with all useful statistics
+    all_lower_bounds - dictionary with all possible thresholds
+    roc01 - dictionary with ROC01 for each threshold
+    """
+    fig, axs = plt.subplots(6, 3, figsize = (15,15), dpi = 300)
+    plot_names = list(smr.name)
+    for i in range(6):
+        for j in range(3):
+            if 3*i+j < 16:
+                axs[i, j].plot(np.log10(np.array(all_lower_bounds[3*i+j])), -np.log10(np.array(roc01[3*i+j])))
+                axs[i, j].set_title(plot_names[3*i+j])
+                axs[i, j].set_xlabel(r'log$_{10}$(threshold)')
+                axs[i, j].set_ylabel(r'-log$_{10}$(ROC01)')
+                axs[i, j].set_ylim([0, 0.35])
+                axs[i, j].vlines(np.log10(smr.roc01_lower_bound[3*i+j]), ymin = 0, ymax = 0.35, color = 'red', linestyles = 'dotted')
+                axs[i, j].axhline(-np.log10(smr.min_roc01.min()), ls = '--', color = 'red')
+            else:
+                axs[i, j].set_visible(False)
+    fig.tight_layout()
+    plt.show()
+
+def plot_signals_p_value(smr, all_lower_bounds, all_p_values):
+    """
+    Plots a panel with signals obtained from chi-squared test.
+    smr - data frame with all useful statistics
+    all_lower_bounds - dictionary with all possible thresholds
+    all_p_values - dictionary with p-values for each threshold
+    """
+    fig, axs = plt.subplots(6, 3, figsize = (15,15), dpi = 300)
     plot_names = list(smr.name)
     for i in range(6):
         for j in range(3):
@@ -198,7 +482,7 @@ def plot_signals_auc(smr, all_lower_bounds, auc):
     all_lower_bounds - dictionary with all possible thresholds
     auc - dictionary with AUC for each threshold
     """
-    fig, axs = plt.subplots(6, 3, figsize = (15,15))
+    fig, axs = plt.subplots(6, 3, figsize = (15,15), dpi = 300)
     plot_names = list(smr.name)
     for i in range(6):
         for j in range(3):
@@ -222,7 +506,7 @@ def plot_signals_gini(smr, all_lower_bounds, gini):
     all_lower_bounds - dictionary with all possible thresholds
     gini - dictionary with AUC for each threshold
     """
-    fig, axs = plt.subplots(6, 3, figsize = (15,15))
+    fig, axs = plt.subplots(6, 3, figsize = (15,15), dpi = 300)
     plot_names = list(smr.name)
     for i in range(6):
         for j in range(3):
@@ -238,7 +522,6 @@ def plot_signals_gini(smr, all_lower_bounds, gini):
                 axs[i, j].set_visible(False)
     fig.tight_layout()
     plt.show()
-
 
 def plot_conf_int(smr, g1_name, g2_name, adjust = False):
     """
@@ -296,7 +579,7 @@ def plot_correction(groups, adj_p_values, correction_type, strain, strain_seq, s
     strain_target - starting point of the target
     """
     tmp = [i for i,g in enumerate(groups) if strain in g]
-    fig, ax = plt.subplots(figsize=(16, 6))
+    fig, ax = plt.subplots(figsize=(16, 6), dpi = 300)
     for i in range(len(strain_stop)):
         p = plt.plot(list(range(strain_stop[i]-15, strain_stop[i])), (adj_p_values[tmp[i]],)*15)
         col = p[0].get_color()
