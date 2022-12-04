@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import chi2_contingency
@@ -334,20 +333,81 @@ def summarize_df(data, g1_idx, g2_idx):
 
     return summary, lower_bounds, p_values, auc, gini, x_plot, y_plot, youden, roc01
 
-def summarize_threshold(smr):
+def summarize_thresholds(smr):
+    """
+    Returns a data frame with thresholds for different methods.
+    smr - data frame with all useful statistics
+    """
 
     n = smr.shape[0]
 
     methods = ['Chi-square', 'ROC01' ,'Youden', '|Sen-Spe|', 'Gini', 'AUC (single thr.)']
-    names = ['test_lower_bound', 'roc01_lower_bound', 'youden_lower_bound', 'dist_lower_bound', 'gini_lower_bound', 'auc_lower_bound']
-    bounds = smr[names]
-    b = []
-    for i in range(smr.shape[1]):
-        for j in range(bounds.shape[0]):
-            b.append(bounds.iloc[i, j])
-    
-    return pd.DataFrame({'Method': methods*n, 'Bounds': b})
+    names_bounds = ['test_lower_bound', 'roc01_lower_bound', 'youden_lower_bound', 'dist_lower_bound', 'gini_lower_bound', 'auc_lower_bound']
+    bounds = smr[names_bounds]
+    names_pvals = ['min_p_value', 'roc01_p_value', 'youden_p_value', 'dist_p_value', 'gini_p_value', 'auc_p_value']
+    pvals = smr[names_pvals]
+    names_sen = ['test_sen', 'roc01_sen', 'youden_sen', 'dist_sen', 'gini_sen', 'auc_sen']
+    sens = smr[names_sen]
+    names_spe = ['test_spe', 'roc01_spe', 'youden_spe', 'dist_spe', 'gini_spe', 'auc_spe']
+    spes = smr[names_spe]
 
+    dirs = ['>' if x == 'above' else '<' for x in smr.direction]
+
+
+    b = []
+    p = []
+    se = []
+    sp = []
+    for i in range(smr.shape[0]):
+        for j in range(bounds.shape[1]):
+            b.append(bounds.iloc[i, j])
+            p.append(pvals.iloc[i, j])
+            se.append(sens.iloc[i, j])
+            sp.append(spes.iloc[i, j])
+
+    
+    ret = pd.DataFrame({'ID': np.repeat(smr.name, 6), 'MAX AUC': np.round(np.repeat(smr.AUC_total, 6), 3),
+        'Method': methods*n, 'Threshold': np.round(b, 2), 'p-value': np.round(p, 4), 
+        'sensitivity': np.round(se, 3), 'specifity': np.round(sp, 3)})
+    ret = ret.set_index(['ID', 'MAX AUC', 'Method'])
+
+    return ret
+
+def summarize_thresholds2(smr):
+    """
+    Returns a data frame with thresholds for different methods.
+    smr - data frame with all useful statistics
+    """
+    names = ['Chi-squared', 'ROC01', "Youden's J statistic", '|Sen-Spe|', 'Gini', 'AUC (single thr.)']
+    bounds = ['test_lower_bound', 'roc01_lower_bound', 'youden_lower_bound', 'dist_lower_bound', 'gini_lower_bound', 'auc_lower_bound']
+    ps = ['min_p_value', 'roc01_p_value', 'youden_p_value', 'dist_p_value', 'gini_p_value', 'auc_p_value']
+
+    d = {'ID': smr.name}
+    for i in range(len(bounds)):
+        d[names[i]] = np.round(smr[bounds[i]], 2).astype(str) + ' (' + np.round(smr[ps[i]], 4).astype(str) + ')'
+
+    ret = pd.DataFrame(d)
+    ret = ret.set_index('ID')
+
+    return ret
+
+def summarize_sen_spe(smr):
+    """
+    Returns a data frame with sensitivities and specifities.
+    smr - data frame with all useful statistics
+    """
+    names = ['Chi-squared', 'ROC01', "Youden's J statistic", '|Sen-Spe|', 'Gini', 'AUC (single thr.)']
+    sens = ['test_sen', 'roc01_sen', 'youden_sen', 'dist_sen', 'gini_sen', 'auc_sen']
+    spes = ['test_spe', 'roc01_spe', 'youden_spe', 'dist_spe', 'gini_spe', 'auc_spe']
+
+    cols = list(zip(['sensitivity']*6, names)) + list(zip(['specifiticy']*6, names))
+
+    df = smr[['name'] + sens + spes]
+    df = df.set_index('name')
+    df.iloc[:, 1:] = np.round(df.iloc[:, 1:], 2)
+    df.columns=pd.MultiIndex.from_tuples(cols)
+
+    return df
 
 def plot_AUC(smr, x_plot, y_plot):
     """
@@ -366,7 +426,7 @@ def plot_AUC(smr, x_plot, y_plot):
                 np.random.seed(0)
                 sd = 0.003
                 axs[i, j].scatter(x = 1-smr.roc01_spe[3*i+j]+np.random.normal(0, sd), y = smr.roc01_sen[3*i+j]+np.random.normal(0, sd), color = 'red', label = 'ROC01')
-                axs[i, j].scatter(x = 1-smr.youden_spe[3*i+j]+np.random.normal(0, sd), y = smr.youden_sen[3*i+j]+np.random.normal(0, sd), color = 'green', label = 'Youden J-index')
+                axs[i, j].scatter(x = 1-smr.youden_spe[3*i+j]+np.random.normal(0, sd), y = smr.youden_sen[3*i+j]+np.random.normal(0, sd), color = 'green', label = "Youden's J statistic")
                 axs[i, j].scatter(x = 1-smr.dist_spe[3*i+j]+np.random.normal(0, sd), y = smr.dist_sen[3*i+j]+np.random.normal(0, sd), color = 'blue', label = '|Sen-Spe|')
                 axs[i, j].set_title(plot_names[3*i+j])
                 axs[i, j].set_ylim([0, 1])
